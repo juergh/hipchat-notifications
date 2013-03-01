@@ -31,7 +31,7 @@ use Purple;
 );
 
 $PLUGIN_NAME = "hipchat-notifications";
-$PLUGIN_PREFS = "/plugins/core/" . $PLUGIN_NAME . "/";
+$PLUGIN_PREFS = "/plugins/core/" . $PLUGIN_NAME;
 
 %CONV_TITLE = ();
 %CONV_COUNT = ();
@@ -54,21 +54,21 @@ sub prefs_info_cb {
     $frame->add($ppref);
 
     $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
-        "visual-alias", "Color \@<alias> messages");
+        "/visual-alias", "Color \@<alias> messages");
     $frame->add($ppref);
 
     $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
-        "visual-alias-color", "Color");
+        "/visual-alias-color", "Color");
     $ppref->set_type(2);
     $ppref->set_max_length(7);
     $frame->add($ppref);
 
     $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
-        "visual-all", "Color \@all messages");
+        "/visual-all", "Color \@all messages");
     $frame->add($ppref);
 
     $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
-        "visual-all-color", "Color");
+        "/visual-all-color", "Color");
     $ppref->set_type(2);
     $ppref->set_max_length(7);
     $frame->add($ppref);
@@ -78,21 +78,21 @@ sub prefs_info_cb {
     $frame->add($ppref);
 
     $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
-        "audible-alias", "Play sound for \@<alias> messages");
+        "/audible-alias", "Play sound for \@<alias> messages");
     $frame->add($ppref);
 
     $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
-        "audible-alias-sound", "Sound file");
+        "/audible-alias-sound", "Sound file");
     $ppref->set_type(2);
     $ppref->set_max_length(64);
     $frame->add($ppref);
 
     $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
-        "audible-all", "Play sound for \@all messages");
+        "/audible-all", "Play sound for \@all messages");
     $frame->add($ppref);
 
     $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
-        "audible-all-sound", "Sound file");
+        "/audible-all-sound", "Sound file");
     $ppref->set_type(2);
     $ppref->set_max_length(64);
     $frame->add($ppref);
@@ -158,14 +158,14 @@ sub receiving_chat_msg_cb {
 	    Purple::Debug::info($PLUGIN_NAME, "message for " . $quoted .
 				" received\n");
 
-	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "visual-all")) {
+	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/visual-all")) {
 		$color = Purple::Prefs::get_string($PLUGIN_PREFS .
-						   "visual-all-color");
+						   "/visual-all-color");
 	    }
 
-	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "audible-all")) {
+	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/audible-all")) {
 		$sound = Purple::Prefs::get_string($PLUGIN_PREFS .
-						   "audible-all-sound");
+						   "/audible-all-sound");
 	    }
 
 	    $count = 1;
@@ -181,14 +181,14 @@ sub receiving_chat_msg_cb {
 	    Purple::Debug::info($PLUGIN_NAME, "message for " . $quoted .
 				" received\n");
 
-	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "visual-alias")) {
+	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/visual-alias")) {
 		$color = Purple::Prefs::get_string($PLUGIN_PREFS .
-						   "visual-alias-color");
+						   "/visual-alias-color");
 	    }
 
-	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "audible-alias")) {
+	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/audible-alias")) {
 		$sound = Purple::Prefs::get_string($PLUGIN_PREFS .
-						   "audible-alias-sound");
+						   "/audible-alias-sound");
 	    }
 
 	    $count = 1;
@@ -234,18 +234,18 @@ sub plugin_load {
     # Initialize the preferences
     Purple::Prefs::add_none($PLUGIN_PREFS);
 
-    Purple::Prefs::add_bool($PLUGIN_PREFS . "visual-alias", 1);
-    Purple::Prefs::add_string($PLUGIN_PREFS . "visual-alias-color", "#c00000");
+    Purple::Prefs::add_bool($PLUGIN_PREFS . "/visual-alias", 1);
+    Purple::Prefs::add_string($PLUGIN_PREFS . "/visual-alias-color", "#c00000");
 
-    Purple::Prefs::add_bool($PLUGIN_PREFS . "visual-all", 1);
-    Purple::Prefs::add_string($PLUGIN_PREFS . "visual-all-color", "#008000");
+    Purple::Prefs::add_bool($PLUGIN_PREFS . "/visual-all", 1);
+    Purple::Prefs::add_string($PLUGIN_PREFS . "/visual-all-color", "#008000");
 
-    Purple::Prefs::add_bool($PLUGIN_PREFS . "audible-alias", 1);
-    Purple::Prefs::add_string($PLUGIN_PREFS . "audible-alias-sound",
+    Purple::Prefs::add_bool($PLUGIN_PREFS . "/audible-alias", 1);
+    Purple::Prefs::add_string($PLUGIN_PREFS . "/audible-alias-sound",
         "/usr/share/sounds/gnome/default/alerts/bark.ogg");
 
-    Purple::Prefs::add_bool($PLUGIN_PREFS . "audible-all", 1);
-    Purple::Prefs::add_string($PLUGIN_PREFS . "audible-all-sound",
+    Purple::Prefs::add_bool($PLUGIN_PREFS . "/audible-all", 1);
+    Purple::Prefs::add_string($PLUGIN_PREFS . "/audible-all-sound",
         "/usr/share/sounds/gnome/default/alerts/bark.ogg");
 
     # Register the Purple callbacks
