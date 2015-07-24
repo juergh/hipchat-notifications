@@ -58,9 +58,19 @@ sub prefs_info_cb {
     $frame->add($ppref);
 
     $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
-        "/visual-alias-color", "Color");
+        "/visual-alias-background-color", "Highlight Color");
     $ppref->set_type(2);
     $ppref->set_max_length(7);
+    $frame->add($ppref);
+
+    $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
+        "/visual-alias-font-color", "Color");
+    $ppref->set_type(2);
+    $ppref->set_max_length(7);
+    $frame->add($ppref);
+
+    $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
+        "/visual-alias-bold", "Bold \@<alias> messages");
     $frame->add($ppref);
 
     $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
@@ -68,9 +78,19 @@ sub prefs_info_cb {
     $frame->add($ppref);
 
     $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
-        "/visual-all-color", "Color");
+        "/visual-all-background-color", "Highlight Color");
     $ppref->set_type(2);
     $ppref->set_max_length(7);
+    $frame->add($ppref);
+
+    $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
+        "/visual-all-font-color", "Color");
+    $ppref->set_type(2);
+    $ppref->set_max_length(7);
+    $frame->add($ppref);
+
+    $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
+        "/visual-all-bold", "Bold \@all messages");
     $frame->add($ppref);
 
     # Audible notifications
@@ -140,11 +160,49 @@ sub conversation_created_cb {
     Purple::timeout_add($plugin, 5, \&enable_notifications_cb, $conv);
 }
 
+sub decorate_message {
+    my ($message, $highlight, $settings_prefix) = @_;
+    my $replace = $highlight;
+    my @attrs;
+
+    $bgcolor = Purple::Prefs::get_string(
+        $PLUGIN_PREFS . $settings_prefix . "-background-color");
+    $color = Purple::Prefs::get_string(
+        $PLUGIN_PREFS . $settings_prefix . "-font-color");
+    $bold = Purple::Prefs::get_bool(
+        $PLUGIN_PREFS . $settings_prefix . "-bold");
+
+    if ($bold) {
+	$replace = "<b>" . $replace . "</b>";
+    }
+    if ($color) {
+	push(@attrs, "color=\"" . $color . "\"");
+    }
+    if ($bgcolor) {
+	push(@attrs, "back=\"" . $bgcolor . "\"");
+    }
+    $replace = "<font " . join(' ', @attrs) . ">" . $replace . "</font>";
+
+    if ($replace ne $highlight) {
+
+        my $pos = index($message, $highlight);
+        if ($pos > -1) {
+            substr( $message, $pos, length( $highlight ), $replace );
+        } else {
+            Purple::Debug::error(
+                $PLUGIN_NAME, "Failed to find '$replace' in '$message'");
+        }
+    }
+
+    return $message
+}
+
 sub receiving_chat_msg_cb {
     my ($account, $sender, $message, $conv, $flags, $plugin) = @_;
     my ($all, $nick, $quoted);
     my $name = $conv->get_name();
     my $color = 0;
+    my $bold = 0;
     my $sound = 0;
     my $count = 0;
 
@@ -154,13 +212,12 @@ sub receiving_chat_msg_cb {
 	# Check if the message was sent to all
 	$all = "\@all";
 	$quoted = quotemeta($all);
-	if ($message =~ /(^|\s)$quoted($|\s)/) {
+	if ($message =~ /(?:^|\s)($quoted)(?:$|\s)/) {
 	    Purple::Debug::info($PLUGIN_NAME, "message for " . $quoted .
 				" received\n");
 
 	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/visual-all")) {
-		$color = Purple::Prefs::get_string($PLUGIN_PREFS .
-						   "/visual-all-color");
+                $message = decorate_message($message, $1, "/visual-all");
 	    }
 
 	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/audible-all")) {
@@ -177,13 +234,12 @@ sub receiving_chat_msg_cb {
 	$alias = "\@" . $account->get_alias();
 	$alias =~ s/\s//g;
 	$quoted = quotemeta($alias);
-	if ($message =~ /(^|\s)$quoted($|\s)/) {
+	if ($message =~ /(?:^|\s)($quoted)(?:$|\s)/) {
 	    Purple::Debug::info($PLUGIN_NAME, "message for " . $quoted .
 				" received\n");
 
 	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/visual-alias")) {
-		$color = Purple::Prefs::get_string($PLUGIN_PREFS .
-						   "/visual-alias-color");
+                $message = decorate_message($message, $1, "/visual-alias");
 	    }
 
 	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/audible-alias")) {
@@ -198,10 +254,6 @@ sub receiving_chat_msg_cb {
     }
 
 DONE:
-    # Color the message
-    if ($color) {
-	$message = "<font color=" . $color . ">" . $message . "</font>";
-    }
 
     # Update the conversation title and play a sound if notifications are
     # enabled and the conversation doesn't have the focus
@@ -235,10 +287,14 @@ sub plugin_load {
     Purple::Prefs::add_none($PLUGIN_PREFS);
 
     Purple::Prefs::add_bool($PLUGIN_PREFS . "/visual-alias", 1);
-    Purple::Prefs::add_string($PLUGIN_PREFS . "/visual-alias-color", "#c00000");
+    Purple::Prefs::add_string($PLUGIN_PREFS . "/visual-alias-background-color", "#E0FFFF");
+    Purple::Prefs::add_string($PLUGIN_PREFS . "/visual-alias-font-color", "#c00000");
+    Purple::Prefs::add_bool($PLUGIN_PREFS . "/visual-alias-bold", 1);
 
     Purple::Prefs::add_bool($PLUGIN_PREFS . "/visual-all", 1);
-    Purple::Prefs::add_string($PLUGIN_PREFS . "/visual-all-color", "#008000");
+    Purple::Prefs::add_string($PLUGIN_PREFS . "/visual-all-background-color", "#E0FFFF");
+    Purple::Prefs::add_string($PLUGIN_PREFS . "/visual-all-font-color", "#008000");
+    Purple::Prefs::add_bool($PLUGIN_PREFS . "/visual-all-bold", 1);
 
     Purple::Prefs::add_bool($PLUGIN_PREFS . "/audible-alias", 1);
     Purple::Prefs::add_string($PLUGIN_PREFS . "/audible-alias-sound",
