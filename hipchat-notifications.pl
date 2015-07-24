@@ -207,7 +207,7 @@ sub receiving_chat_msg_cb {
     my $count = 0;
 
     # Check if this is a HipChat account
-    if ($account->get_username() =~ m|chat.hipchat.com/xmpp$|) {
+    if ($account->get_username() =~ m|(?<=[\.@])hipchat\..*/xmpp$|) {
 
 	# Check if the message was sent to all
 	$all = "\@all";
