@@ -58,9 +58,19 @@ sub prefs_info_cb {
     $frame->add($ppref);
 
     $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
-        "/visual-alias-color", "Color");
+        "/visual-alias-background-color", "Highlight Color");
     $ppref->set_type(2);
     $ppref->set_max_length(7);
+    $frame->add($ppref);
+
+    $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
+        "/visual-alias-font-color", "Color");
+    $ppref->set_type(2);
+    $ppref->set_max_length(7);
+    $frame->add($ppref);
+
+    $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
+        "/visual-alias-bold", "Bold \@<alias> messages");
     $frame->add($ppref);
 
     $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
@@ -68,9 +78,19 @@ sub prefs_info_cb {
     $frame->add($ppref);
 
     $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
-        "/visual-all-color", "Color");
+        "/visual-all-background-color", "Highlight Color");
     $ppref->set_type(2);
     $ppref->set_max_length(7);
+    $frame->add($ppref);
+
+    $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
+        "/visual-all-font-color", "Color");
+    $ppref->set_type(2);
+    $ppref->set_max_length(7);
+    $frame->add($ppref);
+
+    $ppref = Purple::PluginPref->new_with_name_and_label($PLUGIN_PREFS .
+        "/visual-all-bold", "Bold \@all messages");
     $frame->add($ppref);
 
     # Audible notifications
@@ -140,79 +160,107 @@ sub conversation_created_cb {
     Purple::timeout_add($plugin, 5, \&enable_notifications_cb, $conv);
 }
 
-sub receiving_chat_msg_cb {
-    my ($account, $sender, $message, $conv, $flags, $plugin) = @_;
-    my ($all, $nick, $quoted);
-    my $name = $conv->get_name();
+sub decorate_message {
+    my ($message, $highlight, $settings_prefix) = @_;
+    my $replace = $highlight;
     my $color = 0;
+    my $bgcolor = 0;
+    my $bold = 0;
+    my @attrs;
+
+    $bgcolor = Purple::Prefs::get_string(
+        $PLUGIN_PREFS . $settings_prefix . "-background-color");
+    $color = Purple::Prefs::get_string(
+        $PLUGIN_PREFS . $settings_prefix . "-font-color");
+    $bold = Purple::Prefs::get_bool(
+        $PLUGIN_PREFS . $settings_prefix . "-bold");
+
+    if ($bold) {
+	$replace = "<b>" . $replace . "</b>";
+    }
+    if ($color) {
+	push(@attrs, "color=\"" . $color . "\"");
+    }
+    if ($bgcolor) {
+	push(@attrs, "back=\"" . $bgcolor . "\"");
+    }
+    $replace = "<font " . join(' ', @attrs) . ">" . $replace . "</font>";
+
+    if ($replace ne $highlight) {
+
+        my $pos = index($message, $highlight);
+        if ($pos > -1) {
+            substr( $message, $pos, length( $highlight ), $replace );
+        } else {
+            Purple::Debug::error(
+                $PLUGIN_NAME, "Failed to find '$replace' in '$message'");
+        }
+    }
+
+    return $message
+}
+
+sub writing_chat_msg_cb {
+    my ($account, $sender, $message, $conv, $flags, $plugin) = @_;
+    my $name = $conv->get_name();
     my $sound = 0;
     my $count = 0;
 
-    # Check if this is a HipChat account
-    if ($account->get_username() =~ m|chat.hipchat.com/xmpp$|) {
-
-	# Check if the message was sent to all
-	$all = "\@all";
-	$quoted = quotemeta($all);
-	if ($message =~ /(^|\s)$quoted($|\s)/) {
-	    Purple::Debug::info($PLUGIN_NAME, "message for " . $quoted .
-				" received\n");
-
-	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/visual-all")) {
-		$color = Purple::Prefs::get_string($PLUGIN_PREFS .
-						   "/visual-all-color");
-	    }
-
-	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/audible-all")) {
-		$sound = Purple::Prefs::get_string($PLUGIN_PREFS .
-						   "/audible-all-sound");
-	    }
-
-	    $count = 1;
-
-	    goto DONE;
-	}
-
-	# Check if the message was sent to me
-	$alias = "\@" . $account->get_alias();
-	$alias =~ s/\s//g;
-	$quoted = quotemeta($alias);
-	if ($message =~ /(^|\s)$quoted($|\s)/) {
-	    Purple::Debug::info($PLUGIN_NAME, "message for " . $quoted .
-				" received\n");
-
-	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/visual-alias")) {
-		$color = Purple::Prefs::get_string($PLUGIN_PREFS .
-						   "/visual-alias-color");
-	    }
-
-	    if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/audible-alias")) {
-		$sound = Purple::Prefs::get_string($PLUGIN_PREFS .
-						   "/audible-alias-sound");
-	    }
-
-	    $count = 1;
-
-	    goto DONE;
-	}
+    if ( !($flags & Purple::Conversation::Flags::NICK) ||
+        Purple::Conversation::get_type($conv) != Purple::Conversation::Type::CHAT ) {
+        return false;
     }
 
-DONE:
-    # Color the message
-    if ($color) {
-	$message = "<font color=" . $color . ">" . $message . "</font>";
+    # ignore if not a HipChat account
+    if (!($account->get_username() =~ m|(?<=[\.@])hipchat\..*/xmpp$|)) {
+        return false;
+    }
+
+    # Check if the message was sent to all
+    if (check_notify($message, "\@all")) {
+        if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/visual-all")) {
+            $message = decorate_message($message, "\@all", "/visual-all");
+        }
+
+        if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/audible-all")) {
+            $sound = Purple::Prefs::get_string($PLUGIN_PREFS .
+                                               "/audible-all-sound");
+        }
+        $count = 1;
+    }
+
+    $current_status = Purple::Account::get_active_status($account);
+    $status = Purple::StatusType::get_primitive(Purple::Status::get_type($current_status));
+    # Check if the message was sent to here
+    if (check_notify($message, "\@here") && $status == Purple::Status::Primitive::AVAILABLE) {
+        if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/visual-all")) {
+            $message = decorate_message($message, "\@here", "/visual-all");
+        }
+
+        if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/audible-all")) {
+            $sound = Purple::Prefs::get_string($PLUGIN_PREFS .
+                                               "/audible-all-sound");
+        }
+        $count = 1;
+    }
+
+    # Check if the message was sent to me
+    $alias = "\@" . $account->get_alias() =~ s/\s//gr;
+    if (check_notify($message, $alias)) {
+        if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/visual-alias")) {
+            $message = decorate_message($message, $alias, "/visual-alias");
+        }
+
+        if (Purple::Prefs::get_bool($PLUGIN_PREFS . "/audible-alias")) {
+            $sound = Purple::Prefs::get_string($PLUGIN_PREFS .
+                                               "/audible-alias-sound");
+        }
+        $count = 1;
     }
 
     # Update the conversation title and play a sound if notifications are
     # enabled and the conversation doesn't have the focus
     if ($CONV_NOTIFY{$name} && !$conv->has_focus()) {
-
-	# Update the conversation title and count
-	if ($count) {
-	    $CONV_COUNT{$name}++;
-	    $conv->set_title("(" . $CONV_COUNT{$name}.") " .
-			     $CONV_TITLE{$name});
-	}
 
 	# Play a sound
 	if ($sound) {
@@ -222,6 +270,75 @@ DONE:
     }
 
     @_[2] = $message;
+    return false;
+}
+
+sub check_notify {
+    my ($message, $signature) = @_;
+
+    my $quoted = quotemeta($signature);
+    if ($message =~ /(?:^|\s)$quoted(?:$|\s)/) {
+        Purple::Debug::info($PLUGIN_NAME, "message for " . $quoted .
+                            " received\n");
+        return 1;
+    }
+
+    return 0;
+}
+
+sub receiving_chat_msg_cb {
+    my ($account, $sender, $message, $conv, $flags, $plugin) = @_;
+
+    my $name = $conv->get_name();
+    my @always_notify = (
+        "\@all", # Check if the message was sent to all
+        "\@" . $account->get_alias() =~ s/\s//gr # to your alias
+    );
+    my @available_notify = (
+        "\@here" # or only if you are not away
+    );
+    my $count = 0;
+
+    if ( $flags & Purple::Conversation::Flags::NICK ) {
+        # flag already set for persons nick having been said, so
+        # return immediately
+        return false;
+    }
+
+    # ignore if not a HipChat account
+    if (!($account->get_username() =~ m|(?<=[\.@])hipchat\..*/xmpp$|)) {
+        return false;
+    }
+
+    foreach(@always_notify) {
+        if (check_notify($message, $_)) {
+            $flags |= Purple::Conversation::Flags::NICK;
+            $count = 1;
+        }
+    }
+
+    $current_status = Purple::Account::get_active_status($account);
+    $status = Purple::StatusType::get_primitive(Purple::Status::get_type($current_status));
+    if ($status == Purple::Status::Primitive::AVAILABLE) {
+        foreach(@available_notify) {
+            if (check_notify($message, $_)) {
+                $flags |= Purple::Conversation::Flags::NICK;
+                $count = 1;
+            }
+        }
+    }
+
+    if ($CONV_NOTIFY{$name} && !$conv->has_focus()) {
+
+	# Update the conversation title and count
+	if ($count) {
+	    $CONV_COUNT{$name}++;
+	    $conv->set_title("(" . $CONV_COUNT{$name}.") " .
+			     $CONV_TITLE{$name});
+	}
+    }
+
+    @_[4] = $flags;
     return false;
 }
 
@@ -235,10 +352,14 @@ sub plugin_load {
     Purple::Prefs::add_none($PLUGIN_PREFS);
 
     Purple::Prefs::add_bool($PLUGIN_PREFS . "/visual-alias", 1);
-    Purple::Prefs::add_string($PLUGIN_PREFS . "/visual-alias-color", "#c00000");
+    Purple::Prefs::add_string($PLUGIN_PREFS . "/visual-alias-background-color", "#E0FFFF");
+    Purple::Prefs::add_string($PLUGIN_PREFS . "/visual-alias-font-color", "#c00000");
+    Purple::Prefs::add_bool($PLUGIN_PREFS . "/visual-alias-bold", 1);
 
     Purple::Prefs::add_bool($PLUGIN_PREFS . "/visual-all", 1);
-    Purple::Prefs::add_string($PLUGIN_PREFS . "/visual-all-color", "#008000");
+    Purple::Prefs::add_string($PLUGIN_PREFS . "/visual-all-background-color", "#E0FFFF");
+    Purple::Prefs::add_string($PLUGIN_PREFS . "/visual-all-font-color", "#008000");
+    Purple::Prefs::add_bool($PLUGIN_PREFS . "/visual-all-bold", 1);
 
     Purple::Prefs::add_bool($PLUGIN_PREFS . "/audible-alias", 1);
     Purple::Prefs::add_string($PLUGIN_PREFS . "/audible-alias-sound",
@@ -252,6 +373,8 @@ sub plugin_load {
     $conv_handle = Purple::Conversations::get_handle();
     Purple::Signal::connect($conv_handle, "receiving-chat-msg", $plugin,
 			    \&receiving_chat_msg_cb, 0);
+    Purple::Signal::connect($conv_handle, "writing-chat-msg", $plugin,
+                            \&writing_chat_msg_cb, 0);
     Purple::Signal::connect($conv_handle, "conversation-created", $plugin,
 			    \&conversation_created_cb, $plugin);
 
